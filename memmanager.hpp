@@ -227,4 +227,16 @@ void MemManager::free_fast(void * ptr) {
   alloc_blocks.erase(entry);
 };
 
+void MemManager::defrag() {
+  void * ptr(top);
+  void * next;
+  top = nullptr;
+
+  while ( ptr ) {
+    next = get_next(ptr);
+    add_block(ptr, get_size(ptr));
+    ptr = next;
+  }
+};
+
 #endif
