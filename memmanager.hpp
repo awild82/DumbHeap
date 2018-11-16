@@ -1,8 +1,14 @@
 #ifndef __MEMMANAGER_INCLUDE_DEFINED__
 #define __MEMMANAGER_INCLUDE_DEFINED__
 
-#include <vector>
+#define MEMMANAGER_DEBUG
+
+#ifdef MEMMANAGER_DEBUG
+#include <iostream>
+#endif
+
 #include <utility>
+#include <vector>
 
 template <typename AlignType>
 class MemManager {
@@ -11,12 +17,12 @@ class MemManager {
   size_t align_size;
   std::vector<std::pair<void*,void*>> block_bounds;
 
-  static inline void * get_next(void * ptr) {
+  static inline void * & get_next(void * ptr) {
     return *(static_cast<void **>(ptr));
   };
 
-  static inline size_t * get_size(void * ptr) {
-    return static_cast<size_t *>(*(static_cast<void **>(ptr) + 1));
+  static inline size_t & get_size(void * ptr) {
+    return reinterpret_cast<size_t&>(*(static_cast<void **>(ptr) + 1));
   };
 
   inline void check_alignment(void * ptr) {
@@ -72,17 +78,33 @@ class MemManager {
   //   adjacent blocks
   void defrag();
 
-};
+#ifdef MEMMANAGER_DEBUG
+  void print_free() {
+    void * ptr(top);
+
+    std::cout << "                 MemManager Free List  \n";
+    std::cout << "---------------------------------------------------------\n";
+    while (ptr) {
+      std::cout << ptr << " | " << get_size(ptr) << '\n';
+      ptr = get_next(ptr);
+    }
+    std::cout << "---------------------------------------------------------\n";
+  };
+#endif
+
+}; // MemManager
 
 
 template <typename AlignType>
 void MemManager<AlignType>::add_block_fast(void * block, size_t block_size) {
   if ( block_size == 0 )
     return;
-
+  if ( block_size < sizeof(void*) + sizeof(size_t) )
+    throw "Blocks need to be large enough to hold the linked list header";
   check_alignment(block);
+
   get_next(block) = top;
-  *get_size(block) = block_size;
+  get_size(block) = block_size;
   top = block;
 };
 
@@ -90,26 +112,35 @@ template <typename AlignType>
 void MemManager<AlignType>::add_block(void * block, size_t block_size) {
   if ( block_size == 0 )
     return;
-
+  if ( block_size < sizeof(void*) + sizeof(size_t) )
+    throw "Blocks need to be large enough to hold the linked list header";
   check_alignment(block);
+
+  if ( !top ) {
+    get_next(block) = top;
+    get_size(block) = block_size;
+    top = block;
+    return;
+  }
+
+
   void * prev = get_prev(block);
   void * next = get_next(prev);
-  size_t prev_size = *get_size(prev);
-  size_t next_size = *get_size(next);
+  size_t prev_size = get_size(prev);
 
   // Append or link next to block
   if ( static_cast<char*>(block) + block_size == next ) {
     get_next(block) = get_next(next);
-    *get_size(block) = block_size + *get_size(next);
+    get_size(block) = block_size + get_size(next);
   }
   else {
     get_next(block) = next;
-    *get_size(block) = block_size;
+    get_size(block) = block_size;
   }
 
   // Append or link block to prev
   if ( static_cast<char*>(prev) + prev_size == block ) {
-    *get_size(prev) += *get_size(block);
+    get_size(prev) += get_size(block);
     get_next(prev) = get_next(block);
   }
   else {
