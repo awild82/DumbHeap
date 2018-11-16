@@ -10,7 +10,6 @@
 #include <utility>
 #include <vector>
 
-template <typename AlignType>
 class MemManager {
   
   void * top;
@@ -46,7 +45,8 @@ class MemManager {
 
   public:
 
-  MemManager() : top(nullptr), align_size(sizeof(AlignType)) { };
+  MemManager(size_t align_size_ = sizeof(size_t)) :
+    top(nullptr), align_size(align_size_) { };
 
   // add_block searches the free list for the appropriate location to store
   //   this block to maintain order. Merges blocks together if they are
@@ -95,8 +95,7 @@ class MemManager {
 }; // MemManager
 
 
-template <typename AlignType>
-void MemManager<AlignType>::add_block_fast(void * block, size_t block_size) {
+void MemManager::add_block_fast(void * block, size_t block_size) {
   if ( block_size == 0 )
     return;
   if ( block_size < sizeof(void*) + sizeof(size_t) )
@@ -108,14 +107,14 @@ void MemManager<AlignType>::add_block_fast(void * block, size_t block_size) {
   top = block;
 };
 
-template <typename AlignType>
-void MemManager<AlignType>::add_block(void * block, size_t block_size) {
+void MemManager::add_block(void * block, size_t block_size) {
   if ( block_size == 0 )
     return;
   if ( block_size < sizeof(void*) + sizeof(size_t) )
     throw "Blocks need to be large enough to hold the linked list header";
   check_alignment(block);
 
+  // Handle edge case with empty free list
   if ( !top ) {
     get_next(block) = top;
     get_size(block) = block_size;
@@ -123,10 +122,8 @@ void MemManager<AlignType>::add_block(void * block, size_t block_size) {
     return;
   }
 
-
   void * prev = get_prev(block);
   void * next = get_next(prev);
-  size_t prev_size = get_size(prev);
 
   // Append or link next to block
   if ( static_cast<char*>(block) + block_size == next ) {
@@ -139,9 +136,9 @@ void MemManager<AlignType>::add_block(void * block, size_t block_size) {
   }
 
   // Append or link block to prev
-  if ( static_cast<char*>(prev) + prev_size == block ) {
-    get_size(prev) += get_size(block);
+  if ( static_cast<char*>(prev) + get_size(prev) == block ) {
     get_next(prev) = get_next(block);
+    get_size(prev) += get_size(block);
   }
   else {
     get_next(prev) = block;
