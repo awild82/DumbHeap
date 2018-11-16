@@ -7,6 +7,7 @@
 #include <iostream>
 #endif
 
+#include <new>
 #include <utility>
 #include <vector>
 
@@ -153,6 +154,9 @@ T* MemManager::malloc(size_t N) {
   size_t req_size = mod_size == 0 ?
                     N * sizeof(T) : N*sizeof(T) + align_size - mod_size;
 
+  if ( !top )
+    throw std::bad_alloc();
+
   void* ptr(top);
   void* prev(nullptr);
   size_t block_size(get_size(ptr));
@@ -167,10 +171,15 @@ T* MemManager::malloc(size_t N) {
 
   std::cout << req_size << "|||" << block_size << '\n';
   if (req_size == block_size) {
-    if ( prev )
+    if ( prev ){
       get_next(prev) = get_next(ptr);
-    else
+    }
+    else if (ptr) {
       top = get_next(ptr);
+    }
+    else {
+      top = nullptr;
+    }
   }
   else {
     void * new_free = static_cast<void*>(static_cast<char*>(ptr) + req_size);
