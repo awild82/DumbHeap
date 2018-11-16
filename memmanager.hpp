@@ -9,13 +9,13 @@
 
 #include <new>
 #include <utility>
-#include <vector>
+#include <unordered_map>
 
 class MemManager {
   
   void * top;
   size_t align_size;
-  std::vector<std::pair<void*,void*>> block_bounds;
+  std::unordered_map<void*,size_t> alloc_blocks;
 
   static inline void * & get_next(void * ptr) {
     return *(static_cast<void **>(ptr));
@@ -31,6 +31,11 @@ class MemManager {
   };
 
   void * get_prev(void * ptr) {
+
+    // Handle edge case that all blocks are after ptr
+    if ( top > ptr )
+      return nullptr;
+
     void * ret = top;
 
     while ( get_next(ret) ) {
@@ -41,7 +46,6 @@ class MemManager {
 
     return ret;
   };
-
 
 
   public:
@@ -65,14 +69,11 @@ class MemManager {
   T * malloc(size_t N);
 
 
-  // free is a wrapper for add_block that checks if ptr is in the bounds of any
-  //   added blocks
-  template <typename T>
-  void free(T * ptr);
+  // free is a wrapper for add_block that checks if ptr is in the alloc_blocks 
+  void free(void * ptr);
 
-  // free_fast is a wrapper for add_block_fast
-  template <typename T>
-  void free_fast(T * ptr);
+  // free_fast is a wrapper for add_block_fast and checks if ptr is in alloc_blocs
+  void free_fast(void * ptr);
 
 
   // defrag sorts and remerges the free list so it is ordered and contains no
@@ -97,6 +98,7 @@ class MemManager {
 
 
 void MemManager::add_block_fast(void * block, size_t block_size) {
+  // block_size is in bytes
   if ( block_size == 0 )
     return;
   if ( block_size < sizeof(void*) + sizeof(size_t) )
@@ -109,6 +111,7 @@ void MemManager::add_block_fast(void * block, size_t block_size) {
 };
 
 void MemManager::add_block(void * block, size_t block_size) {
+  // block_size is in bytes
   if ( block_size == 0 )
     return;
   if ( block_size < sizeof(void*) + sizeof(size_t) )
@@ -124,7 +127,7 @@ void MemManager::add_block(void * block, size_t block_size) {
   }
 
   void * prev = get_prev(block);
-  void * next = get_next(prev);
+  void * next = prev ? get_next(prev) : top;
 
   // Append or link next to block
   if ( static_cast<char*>(block) + block_size == next ) {
@@ -137,13 +140,16 @@ void MemManager::add_block(void * block, size_t block_size) {
   }
 
   // Append or link block to prev
-  if ( static_cast<char*>(prev) + get_size(prev) == block ) {
+  if ( !prev ) {
+    top = block;
+  }
+  else if ( static_cast<char*>(prev) + get_size(prev) == block ) {
     get_next(prev) = get_next(block);
     get_size(prev) += get_size(block);
   }
   else {
     get_next(prev) = block;
-  };
+  }
 
 };
 
@@ -169,7 +175,6 @@ T* MemManager::malloc(size_t N) {
   if (!ptr)
     return static_cast<T*>(ptr);
 
-  std::cout << req_size << "|||" << block_size << '\n';
   if (req_size == block_size) {
     if ( prev ){
       get_next(prev) = get_next(ptr);
@@ -193,8 +198,33 @@ T* MemManager::malloc(size_t N) {
     }
   }
 
+  alloc_blocks[ptr] = req_size;
+
   return static_cast<T*>(ptr);
 }; 
 
+
+void MemManager::free(void * ptr) {
+  auto entry = alloc_blocks.find(ptr);
+
+  if (entry == alloc_blocks.end())
+    throw "Pointer was not allocated by MemManager";
+
+  add_block(ptr, entry->second);
+
+  alloc_blocks.erase(entry);
+};
+
+
+void MemManager::free_fast(void * ptr) {
+  auto entry = alloc_blocks.find(ptr);
+
+  if (entry == alloc_blocks.end())
+    throw "Pointer was not allocated by MemManager";
+
+  add_block_fast(ptr, entry->second);
+
+  alloc_blocks.erase(entry);
+};
 
 #endif
