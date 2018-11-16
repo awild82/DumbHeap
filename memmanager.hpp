@@ -146,4 +146,46 @@ void MemManager::add_block(void * block, size_t block_size) {
 
 };
 
+
+template <typename T>
+T* MemManager::malloc(size_t N) {
+  size_t mod_size = N * sizeof(T) % align_size;
+  size_t req_size = mod_size == 0 ?
+                    N * sizeof(T) : N*sizeof(T) + align_size - mod_size;
+
+  void* ptr(top);
+  void* prev(nullptr);
+  size_t block_size(get_size(ptr));
+  while ( ptr && block_size < req_size ) {
+    prev = ptr;
+    ptr = get_next(ptr);
+    block_size = get_size(ptr);
+  };
+
+  if (!ptr)
+    return static_cast<T*>(ptr);
+
+  std::cout << req_size << "|||" << block_size << '\n';
+  if (req_size == block_size) {
+    if ( prev )
+      get_next(prev) = get_next(ptr);
+    else
+      top = get_next(ptr);
+  }
+  else {
+    void * new_free = static_cast<void*>(static_cast<char*>(ptr) + req_size);
+    get_next(new_free) = get_next(ptr);
+    get_size(new_free) = get_size(ptr) - req_size;
+    if (top == ptr) {
+      top = new_free;
+    }
+    else {
+      get_next(prev) = new_free;
+    }
+  }
+
+  return static_cast<T*>(ptr);
+}; 
+
+
 #endif
