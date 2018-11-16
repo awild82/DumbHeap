@@ -169,11 +169,11 @@ T* MemManager::malloc(size_t N) {
   while ( ptr && block_size < req_size ) {
     prev = ptr;
     ptr = get_next(ptr);
-    block_size = get_size(ptr);
+    block_size = ptr ? get_size(ptr) : 0;
   };
 
   if (!ptr)
-    return static_cast<T*>(ptr);
+    throw std::bad_alloc();
 
   if (req_size == block_size) {
     if ( prev ){
