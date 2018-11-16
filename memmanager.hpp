@@ -16,12 +16,27 @@ class MemManager {
   };
 
   static inline size_t * get_size(void * ptr) {
-    return static_cast<size_t *>(static_cast<void **>(ptr) + 1);
+    return static_cast<size_t *>(*(static_cast<void **>(ptr) + 1));
   };
 
-  static inline void check_alignment(void * ptr) {
-    if (ptr % align_size != 0) throw "Bad alignment of pointer in MemManager";
+  inline void check_alignment(void * ptr) {
+    if (reinterpret_cast<size_t>(ptr) % align_size != 0)
+      throw "Bad alignment of pointer in MemManager";
   };
+
+  void * get_prev(void * ptr) {
+    void * ret = top;
+
+    while ( get_next(ret) ) {
+      if ( get_next(ret) > ptr ) 
+        break;
+      ret = get_next(ret);
+    }
+
+    return ret;
+  };
+
+
 
   public:
 
