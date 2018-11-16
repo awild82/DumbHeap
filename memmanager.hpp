@@ -59,4 +59,48 @@ class MemManager {
 
 };
 
+
+template <typename AlignType>
+void MemManager<AlignType>::add_block_fast(void * block, size_t block_size) {
+  if ( block_size == 0 )
+    return;
+
+  check_alignment(block);
+  get_next(block) = top;
+  *get_size(block) = block_size;
+  top = block;
+};
+
+template <typename AlignType>
+void MemManager<AlignType>::add_block(void * block, size_t block_size) {
+  if ( block_size == 0 )
+    return;
+
+  check_alignment(block);
+  void * prev = get_prev(block);
+  void * next = get_next(prev);
+  size_t prev_size = *get_size(prev);
+  size_t next_size = *get_size(next);
+
+  // Append or link next to block
+  if ( static_cast<char*>(block) + block_size == next ) {
+    get_next(block) = get_next(next);
+    *get_size(block) = block_size + *get_size(next);
+  }
+  else {
+    get_next(block) = next;
+    *get_size(block) = block_size;
+  }
+
+  // Append or link block to prev
+  if ( static_cast<char*>(prev) + prev_size == block ) {
+    *get_size(prev) += *get_size(block);
+    get_next(prev) = get_next(block);
+  }
+  else {
+    get_next(prev) = block;
+  };
+
+};
+
 #endif
